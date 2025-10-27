@@ -4,9 +4,130 @@ import { Bar, Pie, Doughnut, PolarArea, Radar } from 'react-chartjs-2';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
+
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend);
 
 const OxyRoute = () => {
+    // CPCB Indian AQI Calculation Function
+    const calculateIndianCPCBAQI = (pollutants) => {
+        // CPCB Indian AQI Breakpoints
+        const breakpoints = {
+            pm2_5: [
+                { low: 0, high: 30, aqiLow: 0, aqiHigh: 50 },
+                { low: 31, high: 60, aqiLow: 51, aqiHigh: 100 },
+                { low: 61, high: 90, aqiLow: 101, aqiHigh: 200 },
+                { low: 91, high: 120, aqiLow: 201, aqiHigh: 300 },
+                { low: 121, high: 250, aqiLow: 301, aqiHigh: 400 },
+                { low: 251, high: 500, aqiLow: 401, aqiHigh: 500 }
+            ],
+            pm10: [
+                { low: 0, high: 50, aqiLow: 0, aqiHigh: 50 },
+                { low: 51, high: 100, aqiLow: 51, aqiHigh: 100 },
+                { low: 101, high: 250, aqiLow: 101, aqiHigh: 200 },
+                { low: 251, high: 350, aqiLow: 201, aqiHigh: 300 },
+                { low: 351, high: 430, aqiLow: 301, aqiHigh: 400 },
+                { low: 431, high: 500, aqiLow: 401, aqiHigh: 500 }
+            ],
+            no2: [
+                { low: 0, high: 40, aqiLow: 0, aqiHigh: 50 },
+                { low: 41, high: 80, aqiLow: 51, aqiHigh: 100 },
+                { low: 81, high: 180, aqiLow: 101, aqiHigh: 200 },
+                { low: 181, high: 280, aqiLow: 201, aqiHigh: 300 },
+                { low: 281, high: 400, aqiLow: 301, aqiHigh: 400 },
+                { low: 401, high: 500, aqiLow: 401, aqiHigh: 500 }
+            ],
+            so2: [
+                { low: 0, high: 40, aqiLow: 0, aqiHigh: 50 },
+                { low: 41, high: 80, aqiLow: 51, aqiHigh: 100 },
+                { low: 81, high: 380, aqiLow: 101, aqiHigh: 200 },
+                { low: 381, high: 800, aqiLow: 201, aqiHigh: 300 },
+                { low: 801, high: 1600, aqiLow: 301, aqiHigh: 400 },
+                { low: 1601, high: 2000, aqiLow: 401, aqiHigh: 500 }
+            ],
+            co: [
+                { low: 0, high: 1000, aqiLow: 0, aqiHigh: 50 },
+                { low: 1001, high: 2000, aqiLow: 51, aqiHigh: 100 },
+                { low: 2001, high: 10000, aqiLow: 101, aqiHigh: 200 },
+                { low: 10001, high: 17000, aqiLow: 201, aqiHigh: 300 },
+                { low: 17001, high: 34000, aqiLow: 301, aqiHigh: 400 },
+                { low: 34001, high: 50000, aqiLow: 401, aqiHigh: 500 }
+            ],
+            o3: [
+                { low: 0, high: 50, aqiLow: 0, aqiHigh: 50 },
+                { low: 51, high: 100, aqiLow: 51, aqiHigh: 100 },
+                { low: 101, high: 168, aqiLow: 101, aqiHigh: 200 },
+                { low: 169, high: 208, aqiLow: 201, aqiHigh: 300 },
+                { low: 209, high: 748, aqiLow: 301, aqiHigh: 400 },
+                { low: 749, high: 1000, aqiLow: 401, aqiHigh: 500 }
+            ]
+        };
+
+        const calculatePollutantAQI = (pollutant, concentration) => {
+            const bps = breakpoints[pollutant];
+            if (!bps || concentration === undefined || concentration === null) return 0;
+
+            for (const bp of bps) {
+                if (concentration >= bp.low && concentration <= bp.high) {
+                    const aqi = ((bp.aqiHigh - bp.aqiLow) / (bp.high - bp.low)) * (concentration - bp.low) + bp.aqiLow;
+                    return Math.round(aqi);
+                }
+            }
+            return 500; // If concentration exceeds all breakpoints
+        };
+
+        const individualAQIs = {};
+        const pollutantKeys = ['pm2_5', 'pm10', 'no2', 'so2', 'co', 'o3'];
+
+        pollutantKeys.forEach(pollutant => {
+            if (pollutants[pollutant] !== undefined) {
+                individualAQIs[pollutant] = calculatePollutantAQI(pollutant, pollutants[pollutant]);
+            }
+        });
+
+        // CPCB method: Take MAXIMUM AQI among all pollutants
+        const maxAQI = Math.max(...Object.values(individualAQIs));
+        const dominantPollutant = Object.keys(individualAQIs).find(key => individualAQIs[key] === maxAQI);
+
+        console.log(`       Individual AQIs:`, individualAQIs);
+        console.log(`       => AQI_checkpoint = max(${Object.values(individualAQIs).join(', ')}) = ${maxAQI}`);
+
+        return {
+            aqi: maxAQI,
+            dominant: dominantPollutant,
+            details: individualAQIs
+        };
+    };
+
+    // OpenWeather API function
+    const fetchOpenWeatherAQI = async (lat, lng) => {
+        try {
+            const response = await fetch(
+                `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lng}&appid=${airApiKey}`
+            );
+            const data = await response.json();
+
+            if (data.list && data.list[0]) {
+                const components = data.list[0].components;
+                return {
+                    pollutants: {
+                        pm2_5: components.pm2_5 || 0,
+                        pm10: components.pm10 || 0,
+                        no2: components.no2 || 0,
+                        so2: components.so2 || 0,
+                        co: components.co || 0,
+                        o3: components.o3 || 0,
+                        nh3: components.nh3 || 0
+                    },
+                    source: 'OpenWeather'
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching OpenWeather data:', error);
+            return null;
+        }
+    };
+
     // Advanced iOS glassmorphism animations and effects
     useEffect(() => {
         const style = document.createElement('style');
@@ -153,6 +274,13 @@ const OxyRoute = () => {
     const [insightsSource, setInsightsSource] = useState(''); // 'gemini' or 'local'
     const [isTyping, setIsTyping] = useState(false);
     const [isMapLoading, setIsMapLoading] = useState(true);
+
+    // Single Place AQI Checker states
+    const [singlePlace, setSinglePlace] = useState('');
+    const [singlePlaceAQI, setSinglePlaceAQI] = useState(null);
+    const [singlePlacePollutants, setSinglePlacePollutants] = useState({});
+    const [loadingSinglePlace, setLoadingSinglePlace] = useState(false);
+    const [singlePlaceResults, setSinglePlaceResults] = useState('');
     // Fixed dark glass theme - no toggle needed
 
     const mapRef = useRef(null);
@@ -160,12 +288,11 @@ const OxyRoute = () => {
     const chartInstanceRef = useRef(null);
     const startInputRef = useRef(null);
     const endInputRef = useRef(null);
-    const airApiKey = '40dc62f189205f90807482eed0862386';
-    // Get API key from environment variable (recommended) or replace with your actual key
-    const geminiApiKey = 'AIzaSyC8I-oPXSk-Y-w4DKMyLiGr3BeECAFF9rU';
-
-    // Real air quality data sources (no fake scaling)
-    const waqiToken = 'demo'; // Replace with real WAQI token from https://aqicn.org/data-platform/token/
+    const singlePlaceInputRef = useRef(null);
+    // Use environment variables for API keys (more secure)
+    const airApiKey = process.env.REACT_APP_OPENWEATHER_API_KEY || '40dc62f189205f90807482eed0862386';
+    const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY || 'AIzaSyC8I-oPXSk-Y-w4DKMyLiGr3BeECAFF9rU';
+    const waqiToken = process.env.REACT_APP_WAQI_TOKEN || 'demo';
 
     // Ultra-modern iOS glassmorphism theme with advanced refraction
     const getStyles = () => ({
@@ -654,56 +781,146 @@ const OxyRoute = () => {
         // Only initialize once when component mounts
         if (map) return;
 
+        // Load Google Maps script dynamically with API key from environment
+        const loadGoogleMapsScript = () => {
+            return new Promise((resolve, reject) => {
+                // Check if script is already loaded
+                if (window.google && window.google.maps) {
+                    resolve();
+                    return;
+                }
+
+                // Check if script is already being loaded
+                if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+                    // Wait for existing script to load
+                    const checkLoaded = setInterval(() => {
+                        if (window.google && window.google.maps) {
+                            clearInterval(checkLoaded);
+                            resolve();
+                        }
+                    }, 100);
+                    return;
+                }
+
+                const script = document.createElement('script');
+                const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+
+                if (!apiKey) {
+                    console.error('❌ Google Maps API key not found in environment variables');
+                    reject(new Error('Google Maps API key not configured'));
+                    return;
+                }
+
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMaps`;
+                script.async = true;
+                script.defer = true;
+
+                script.onload = () => {
+                    console.log('✅ Google Maps script loaded successfully');
+                    resolve();
+                };
+
+                script.onerror = (error) => {
+                    console.error('❌ Failed to load Google Maps script:', error);
+                    reject(error);
+                };
+
+                document.head.appendChild(script);
+            });
+        };
+
         const initMap = () => {
-            if (window.google && mapRef.current && !map) {
-                const mapInstance = new window.google.maps.Map(mapRef.current, {
-                    center: { lat: 18.5204, lng: 73.8567 },
-                    zoom: 12,
-                });
+            try {
+                if (window.google && window.google.maps && mapRef.current && !map) {
+                    console.log('🗺️ Initializing Google Maps...');
 
-                const directionsServiceInstance = new window.google.maps.DirectionsService();
+                    const mapInstance = new window.google.maps.Map(mapRef.current, {
+                        center: { lat: 18.5204, lng: 73.8567 },
+                        zoom: 12,
+                        styles: [
+                            { elementType: 'geometry', stylers: [{ color: '#212121' }] },
+                            { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+                            { elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+                            { elementType: 'labels.text.stroke', stylers: [{ color: '#212121' }] },
+                            { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#757575' }] },
+                            { featureType: 'road', elementType: 'geometry.fill', stylers: [{ color: '#2c2c2c' }] },
+                            { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+                            { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#000000' }] }
+                        ]
+                    });
 
-                setMap(mapInstance);
-                setDirectionsService(directionsServiceInstance);
+                    const directionsServiceInstance = new window.google.maps.DirectionsService();
 
-                console.log('Google Maps initialized successfully!');
+                    setMap(mapInstance);
+                    setDirectionsService(directionsServiceInstance);
+                    setIsMapLoading(false);
 
-                // Initialize autocomplete after map is created
-                setTimeout(() => {
-                    if (window.google && window.google.maps && window.google.maps.places) {
-                        if (startInputRef.current && !startInputRef.current.hasAutocomplete) {
-                            const startAutocomplete = new window.google.maps.places.Autocomplete(startInputRef.current);
-                            startInputRef.current.hasAutocomplete = true;
-                            startAutocomplete.addListener('place_changed', () => {
-                                const place = startAutocomplete.getPlace();
-                                if (place.formatted_address) {
-                                    setStartLocation(place.formatted_address);
+                    console.log('✅ Google Maps initialized successfully!');
+
+                    // Initialize autocomplete after map is created
+                    setTimeout(() => {
+                        try {
+                            if (window.google && window.google.maps && window.google.maps.places) {
+                                if (startInputRef.current && !startInputRef.current.hasAutocomplete) {
+                                    const startAutocomplete = new window.google.maps.places.Autocomplete(startInputRef.current);
+                                    startInputRef.current.hasAutocomplete = true;
+                                    startAutocomplete.addListener('place_changed', () => {
+                                        const place = startAutocomplete.getPlace();
+                                        if (place.formatted_address) {
+                                            setStartLocation(place.formatted_address);
+                                        }
+                                    });
                                 }
-                            });
-                        }
-                        if (endInputRef.current && !endInputRef.current.hasAutocomplete) {
-                            const endAutocomplete = new window.google.maps.places.Autocomplete(endInputRef.current);
-                            endInputRef.current.hasAutocomplete = true;
-                            endAutocomplete.addListener('place_changed', () => {
-                                const place = endAutocomplete.getPlace();
-                                if (place.formatted_address) {
-                                    setEndLocation(place.formatted_address);
+                                if (endInputRef.current && !endInputRef.current.hasAutocomplete) {
+                                    const endAutocomplete = new window.google.maps.places.Autocomplete(endInputRef.current);
+                                    endInputRef.current.hasAutocomplete = true;
+                                    endAutocomplete.addListener('place_changed', () => {
+                                        const place = endAutocomplete.getPlace();
+                                        if (place.formatted_address) {
+                                            setEndLocation(place.formatted_address);
+                                        }
+                                    });
                                 }
-                            });
+                                if (singlePlaceInputRef.current && !singlePlaceInputRef.current.hasAutocomplete) {
+                                    const singlePlaceAutocomplete = new window.google.maps.places.Autocomplete(singlePlaceInputRef.current);
+                                    singlePlaceInputRef.current.hasAutocomplete = true;
+                                    singlePlaceAutocomplete.addListener('place_changed', () => {
+                                        const place = singlePlaceAutocomplete.getPlace();
+                                        if (place.formatted_address) {
+                                            setSinglePlace(place.formatted_address);
+                                        }
+                                    });
+                                }
+                                console.log('✅ Autocomplete initialized successfully!');
+                            } else {
+                                console.warn('⚠️ Google Places library not available');
+                            }
+                        } catch (error) {
+                            console.error('❌ Error initializing autocomplete:', error);
                         }
-                        console.log('Autocomplete initialized successfully!');
-                    }
-                }, 100);
+                    }, 100);
+                } else {
+                    console.log('⏳ Waiting for Google Maps to load...');
+                }
+            } catch (error) {
+                console.error('❌ Error initializing Google Maps:', error);
+                setIsMapLoading(false);
             }
         };
 
-        // Set up global initMap function for Google Maps callback
-        window.initMap = initMap;
+        // Set up global callback function for Google Maps
+        window.initGoogleMaps = initMap;
 
-        // Check if Google Maps is already loaded
-        if (window.google && window.google.maps) {
-            initMap();
-        }
+        // Load Google Maps script and initialize
+        loadGoogleMapsScript()
+            .then(() => {
+                initMap();
+            })
+            .catch((error) => {
+                console.error('❌ Failed to initialize Google Maps:', error);
+                setIsMapLoading(false);
+                alert('❌ Failed to load Google Maps. Please check your internet connection and API key configuration.');
+            });
     }, []); // Empty dependency array - only run once on mount
 
     const clearMap = () => {
@@ -716,7 +933,241 @@ const OxyRoute = () => {
         setRouteDetails('');
     };
 
-    const createRouteComparisonMap = (aqiResults, directionsResult) => {
+    // Single Place AQI Checker Function
+    const checkSinglePlaceAQI = async () => {
+        if (!singlePlace.trim()) {
+            alert('📍 Please enter a location to check AQI.');
+            return;
+        }
+
+        // Check if Google Maps is loaded
+        if (!window.google || !window.google.maps) {
+            alert('⚠️ Google Maps is still loading. Please wait a moment and try again.');
+            return;
+        }
+
+        console.log('🔍 Checking AQI for single place:', singlePlace);
+        setLoadingSinglePlace(true);
+        setSinglePlaceResults('');
+
+        try {
+            // Use Places service instead of Geocoding API as a workaround
+            const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+
+            const request = {
+                query: singlePlace,
+                fields: ['geometry', 'name', 'formatted_address']
+            };
+
+            service.textSearch(request, async (results, status) => {
+                console.log('🔍 Places search status:', status);
+                console.log('🔍 Places search results:', results);
+
+                if (status === window.google.maps.places.PlacesServiceStatus.OK && results[0]) {
+                    const location = results[0].geometry.location;
+                    const lat = typeof location.lat === 'function' ? location.lat() : location.lat;
+                    const lng = typeof location.lng === 'function' ? location.lng() : location.lng;
+
+                    console.log(`📍 Coordinates for ${singlePlace}: ${lat}, ${lng}`);
+
+                    // Fetch pollution data
+                    const pollutionData = await fetchOpenWeatherAQI(lat, lng);
+
+                    if (pollutionData && pollutionData.pollutants) {
+                        // Calculate AQI using CPCB Indian standards
+                        const calculatedAQI = calculateIndianCPCBAQI(pollutionData.pollutants);
+
+                        console.log(`✅ AQI for ${singlePlace}: ${calculatedAQI.aqi}`);
+                        console.log('📊 Pollutants:', pollutionData.pollutants);
+
+                        setSinglePlaceAQI(calculatedAQI.aqi);
+                        setSinglePlacePollutants(pollutionData.pollutants);
+                        setDominantPollutant(calculatedAQI.dominant);
+
+                        // Create results display
+                        const resultsHTML = `
+                            <div style="
+                                background: rgba(5, 5, 10, 0.2);
+                                backdrop-filter: blur(40px) saturate(150%);
+                                -webkit-backdrop-filter: blur(40px) saturate(150%);
+                                color: #ffffff;
+                                padding: 30px;
+                                border-radius: 20px;
+                                border: 1px solid rgba(255, 255, 255, 0.03);
+                                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+                                margin: 20px 0;
+                            ">
+                                <!-- Header -->
+                                <div style="text-align: center; margin-bottom: 24px;">
+                                    <h3 style="
+                                        color: #00ff7f;
+                                        margin: 0 0 12px 0;
+                                        font-size: 24px;
+                                        font-weight: 700;
+                                    ">
+                                        📍 ${singlePlace}
+                                    </h3>
+                                    <div style="
+                                        display: inline-block;
+                                        padding: 12px 24px;
+                                        border-radius: 50px;
+                                        font-weight: 700;
+                                        font-size: 18px;
+                                        color: #fff;
+                                        background: ${getAQIColor(calculatedAQI.aqi)};
+                                        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+                                        border: 3px solid rgba(255, 255, 255, 0.3);
+                                    ">
+                                        AQI: ${calculatedAQI.aqi} (${getAQICategory(calculatedAQI.aqi)})
+                                    </div>
+                                </div>
+
+                                <!-- AQI Details -->
+                                <div style="
+                                    display: grid;
+                                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                                    gap: 16px;
+                                    margin-bottom: 24px;
+                                ">
+                                    <div style="text-align: center; padding: 16px; background: rgba(139, 92, 246, 0.1); border-radius: 12px;">
+                                        <div style="font-size: 12px; color: #8b5cf6; font-weight: 600;">DOMINANT POLLUTANT</div>
+                                        <div style="font-size: 18px; font-weight: 700; color: #ffffff;">${calculatedAQI.dominant.toUpperCase()}</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 16px; background: rgba(59, 130, 246, 0.1); border-radius: 12px;">
+                                        <div style="font-size: 12px; color: #3b82f6; font-weight: 600;">COORDINATES</div>
+                                        <div style="font-size: 14px; font-weight: 600; color: #ffffff;">${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
+                                    </div>
+                                </div>
+
+                                <!-- Pollutant Levels -->
+                                <div style="
+                                    background: rgba(16, 185, 129, 0.05);
+                                    padding: 20px;
+                                    border-radius: 16px;
+                                    border: 1px solid rgba(16, 185, 129, 0.2);
+                                ">
+                                    <h4 style="
+                                        color: #059669;
+                                        margin: 0 0 16px 0;
+                                        font-size: 18px;
+                                        font-weight: 600;
+                                    ">
+                                        🧪 Pollutant Levels (μg/m³)
+                                    </h4>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px;">
+                                        ${Object.entries(pollutionData.pollutants).map(([key, value]) => `
+                                            <div style="
+                                                background: rgba(255, 255, 255, 0.1);
+                                                padding: 12px 8px;
+                                                border-radius: 8px;
+                                                text-align: center;
+                                                border: 1px solid rgba(255, 255, 255, 0.05);
+                                            ">
+                                                <div style="font-size: 12px; color: #b0b0b0; font-weight: 600;">${key.toUpperCase()}</div>
+                                                <div style="font-size: 16px; font-weight: 700; color: #ffffff;">${typeof value === 'number' ? value.toFixed(2) : value}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+
+                                <!-- Health Recommendation -->
+                                <div style="
+                                    background: rgba(245, 158, 11, 0.05);
+                                    padding: 20px;
+                                    border-radius: 16px;
+                                    border: 1px solid rgba(245, 158, 11, 0.2);
+                                    margin-top: 20px;
+                                ">
+                                    <h4 style="
+                                        color: #f59e0b;
+                                        margin: 0 0 12px 0;
+                                        font-size: 18px;
+                                        font-weight: 600;
+                                    ">
+                                        💡 Health Recommendation
+                                    </h4>
+                                    <div style="color: #e0e0e0; font-size: 14px; line-height: 1.6;">
+                                        ${getHealthRecommendation(calculatedAQI.aqi)}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+
+                        setSinglePlaceResults(resultsHTML);
+
+                        // Add marker on map
+                        clearMap();
+                        const marker = new window.google.maps.Marker({
+                            position: { lat, lng },
+                            map,
+                            title: `${singlePlace} - AQI: ${calculatedAQI.aqi}`,
+                            icon: {
+                                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                                    <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="20" cy="20" r="18" fill="${getAQIColor(calculatedAQI.aqi)}" stroke="#fff" stroke-width="2"/>
+                                        <text x="20" y="26" text-anchor="middle" fill="white" font-family="Arial" font-size="12" font-weight="bold">${calculatedAQI.aqi}</text>
+                                    </svg>
+                                `),
+                                scaledSize: new window.google.maps.Size(40, 40),
+                                anchor: new window.google.maps.Point(20, 20)
+                            }
+                        });
+
+                        setMarkers([marker]);
+                        map.setCenter({ lat, lng });
+                        map.setZoom(14);
+
+                    } else {
+                        alert('❌ Could not fetch air quality data for this location.');
+                    }
+                } else {
+                    console.error('❌ Geocoding failed:', status);
+                    console.error('❌ Geocoding results:', results);
+
+                    let errorMessage = '❌ Could not find the specified location. Please try a different address.';
+
+                    // Provide more specific error messages based on Places API status
+                    switch (status) {
+                        case window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS:
+                            errorMessage = '❌ No results found for this location. Please try a more specific address.';
+                            break;
+                        case window.google.maps.places.PlacesServiceStatus.OVER_QUERY_LIMIT:
+                            errorMessage = '❌ Too many requests. Please try again later.';
+                            break;
+                        case window.google.maps.places.PlacesServiceStatus.REQUEST_DENIED:
+                            errorMessage = '❌ Places service denied. Please check API key configuration.';
+                            break;
+                        case window.google.maps.places.PlacesServiceStatus.INVALID_REQUEST:
+                            errorMessage = '❌ Invalid request. Please enter a valid location.';
+                            break;
+                        case window.google.maps.places.PlacesServiceStatus.UNKNOWN_ERROR:
+                            errorMessage = '❌ Unknown error occurred. Please try again.';
+                            break;
+                    }
+
+                    alert(errorMessage);
+                }
+
+                setLoadingSinglePlace(false);
+            });
+
+        } catch (error) {
+            console.error('❌ Error checking single place AQI:', error);
+            alert('❌ Error occurred while checking AQI. Please try again.');
+            setLoadingSinglePlace(false);
+        }
+    };
+
+    // Health recommendation based on AQI
+    const getHealthRecommendation = (aqi) => {
+        if (aqi <= 50) return "✅ Air quality is good. Perfect for outdoor activities and exercise.";
+        if (aqi <= 100) return "🟡 Air quality is moderate. Sensitive individuals should consider limiting prolonged outdoor exertion.";
+        if (aqi <= 200) return "🟠 Air quality is unhealthy for sensitive groups. Children, elderly, and people with respiratory conditions should limit outdoor activities.";
+        if (aqi <= 300) return "🔴 Air quality is unhealthy. Everyone should limit outdoor activities and wear masks when outside.";
+        return "🚨 Air quality is hazardous. Avoid outdoor activities and stay indoors with air purifiers if possible.";
+    };
+
+    const createRouteComparisonMap = (routeAnalysis, directionsResult) => {
         const container = document.getElementById('comparisonMapContainer');
         if (!container || !window.google || !map) {
             console.log('❌ Cannot create comparison map: missing container or Google Maps');
@@ -758,12 +1209,12 @@ const OxyRoute = () => {
         container.appendChild(mapsContainer);
 
         // Create 3 separate maps for each route
-        aqiResults.slice(0, 3).forEach((routeData, index) => {
+        routeAnalysis.slice(0, 3).forEach((routeData, index) => {
             const originalIndex = directionsResult.routes.indexOf(routeData.route);
-            const color = getAQIColor(routeData.aqi);
-            const healthStatus = routeData.aqi <= 50 ? '😊 Good' :
-                routeData.aqi <= 100 ? '😐 Moderate' :
-                    routeData.aqi <= 200 ? '😷 Unhealthy' : '🚨 Very Unhealthy';
+            const color = getAQIColor(routeData.meanAQI);
+            const healthStatus = routeData.meanAQI <= 50 ? '😊 Good' :
+                routeData.meanAQI <= 100 ? '😐 Moderate' :
+                    routeData.meanAQI <= 200 ? '😷 Unhealthy' : '🚨 Very Unhealthy';
 
             // Create individual map container
             const mapContainer = document.createElement('div');
@@ -789,20 +1240,15 @@ const OxyRoute = () => {
                 border-left: 4px solid ${color};
             `;
 
-            // Get proper distance and duration from the route
-            const leg = routeData.route.legs[0];
-            const distance = leg ? leg.distance.text : 'N/A';
-            const duration = leg ? leg.duration.text : 'N/A';
-
             routeInfo.innerHTML = `
                 <div style="font-weight: bold; font-size: 16px; color: #e6edf3; margin-bottom: 8px;">
-                    ${index === 0 ? '🏆 Healthiest Route' : `Route ${index + 1}`}
+                    ${index === 0 ? '🏆 Healthiest Route' : `Route ${routeData.routeNumber}`}
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #7d8590;">
-                    <div><strong>AQI:</strong> ${routeData.aqi}</div>
+                    <div><strong>Mean AQI:</strong> ${routeData.meanAQI}</div>
                     <div><strong>Status:</strong> ${healthStatus}</div>
-                    <div><strong>Distance:</strong> ${distance}</div>
-                    <div><strong>Duration:</strong> ${duration}</div>
+                    <div><strong>Distance:</strong> ${routeData.distance}</div>
+                    <div><strong>Duration:</strong> ${routeData.duration}</div>
                 </div>
             `;
             mapContainer.appendChild(routeInfo);
@@ -870,16 +1316,16 @@ const OxyRoute = () => {
                 color: #7d8590;
             `;
 
-            const aqiCategory = routeData.aqi <= 50 ? 'Good' :
-                routeData.aqi <= 100 ? 'Moderate' :
-                    routeData.aqi <= 150 ? 'Poor' :
-                        routeData.aqi <= 200 ? 'Unhealthy' :
-                            routeData.aqi <= 300 ? 'Severe' : 'Hazardous';
+            const aqiCategory = routeData.meanAQI <= 50 ? 'Good' :
+                routeData.meanAQI <= 100 ? 'Moderate' :
+                    routeData.meanAQI <= 150 ? 'Poor' :
+                        routeData.meanAQI <= 200 ? 'Unhealthy' :
+                            routeData.meanAQI <= 300 ? 'Severe' : 'Hazardous';
 
-            const healthRecommendation = routeData.aqi <= 50 ? 'Safe for all activities' :
-                routeData.aqi <= 100 ? 'Sensitive people should limit outdoor activities' :
-                    routeData.aqi <= 150 ? 'Everyone should reduce outdoor activities' :
-                        routeData.aqi <= 200 ? 'Avoid outdoor activities' :
+            const healthRecommendation = routeData.meanAQI <= 50 ? 'Safe for all activities' :
+                routeData.meanAQI <= 100 ? 'Sensitive people should limit outdoor activities' :
+                    routeData.meanAQI <= 150 ? 'Everyone should reduce outdoor activities' :
+                        routeData.meanAQI <= 200 ? 'Avoid outdoor activities' :
                             'Stay indoors, health emergency';
 
             detailsContainer.innerHTML = `
@@ -899,165 +1345,164 @@ const OxyRoute = () => {
         console.log('✅ Created 3 individual route comparison maps');
     };
 
-    // Fetch real AQI data from multiple sources (NO FAKE SCALING)
-    const fetchRealAQIData = async (lat, lng) => {
-        console.log(`🌍 Fetching REAL air quality data for coordinates: ${lat}, ${lng}`);
 
-        // Try WAQI first (most accurate for India)
-        try {
-            const waqiUrl = `https://api.waqi.info/feed/geo:${lat};${lng}/?token=${waqiToken}`;
-            console.log('📡 Trying WAQI (Real ground stations)...');
-            const response = await fetch(waqiUrl);
-            const data = await response.json();
 
-            if (data.status === 'ok' && data.data && data.data.aqi > 0) {
-                console.log('✅ Got REAL data from WAQI ground stations:', data.data);
-                return {
-                    aqi: data.data.aqi,
-                    dominant: data.data.dominentpol || 'pm25',
-                    pollutants: data.data.iaqi || {},
-                    source: 'WAQI Real Ground Stations',
-                    city: data.data.city?.name || 'Unknown Location',
-                    isReal: true
-                };
-            }
-        } catch (error) {
-            console.log('❌ WAQI failed:', error.message);
-        }
-
-        // Try nearest Indian city as fallback
-        const indianCities = [
-            { name: 'Delhi', waqi: 'delhi' },
-            { name: 'Mumbai', waqi: 'mumbai' },
-            { name: 'Bangalore', waqi: 'bangalore' },
-            { name: 'Chennai', waqi: 'chennai' },
-            { name: 'Kolkata', waqi: 'kolkata' },
-            { name: 'Hyderabad', waqi: 'hyderabad' },
-            { name: 'Pune', waqi: 'pune' },
-            { name: 'Ahmedabad', waqi: 'ahmedabad' },
-            { name: 'Gurgaon', waqi: 'gurgaon' },
-            { name: 'Noida', waqi: 'noida' }
-        ];
-
-        for (const city of indianCities) {
-            try {
-                console.log(`📡 Trying real data from ${city.name}...`);
-                const response = await fetch(`https://api.waqi.info/feed/${city.waqi}/?token=${waqiToken}`);
-                const data = await response.json();
-
-                if (data.status === 'ok' && data.data && data.data.aqi > 0) {
-                    console.log(`✅ Got REAL data from ${city.name}:`, data.data);
-                    return {
-                        aqi: data.data.aqi,
-                        dominant: data.data.dominentpol || 'pm25',
-                        pollutants: data.data.iaqi || {},
-                        source: `Real data from ${city.name} monitoring stations`,
-                        city: city.name,
-                        isReal: true
-                    };
-                }
-            } catch (error) {
-                console.log(`❌ ${city.name} failed:`, error.message);
-            }
-        }
-
-        // Last resort: OpenWeather with proper calculation (no scaling)
-        try {
-            console.log('📡 Trying OpenWeather as last resort...');
-            const response = await fetch(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lng}&appid=${airApiKey}`);
-            const data = await response.json();
-
-            if (data.list && data.list[0]) {
-                const components = data.list[0].components;
-                const calculated = calculateIndianAQI(components);
-                console.log('⚠️ Using OpenWeather satellite data (less accurate):', calculated);
-
-                return {
-                    aqi: calculated.aqi,
-                    dominant: calculated.dominant,
-                    pollutants: components,
-                    source: 'OpenWeather Satellite Data (Less Accurate)',
-                    city: 'Satellite Coordinates',
-                    isReal: false
-                };
-            }
-        } catch (error) {
-            console.log('❌ OpenWeather failed:', error.message);
-        }
-
-        return null;
+    // Calculate distance between two coordinates (Haversine formula)
+    const calculateDistance = (lat1, lng1, lat2, lng2) => {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     };
 
-    const calculateIndianAQI = (components) => {
-        // Standard Indian AQI breakpoints (CPCB guidelines)
-        const breakpoints = {
-            // PM2.5 in μg/m³ (24-hour average)
-            pm2_5: [0, 30, 60, 90, 120, 250],
-            // PM10 in μg/m³ (24-hour average)  
-            pm10: [0, 50, 100, 250, 350, 430],
-            // NO2 in μg/m³ (1-hour average)
-            no2: [0, 40, 80, 180, 280, 400],
-            // O3 in μg/m³ (8-hour average)
-            o3: [0, 50, 100, 168, 208, 748],
-            // CO in mg/m³ (8-hour average) - convert from μg/m³
-            co: [0, 1, 2, 10, 17, 34],
-            // SO2 in μg/m³ (24-hour average)
-            so2: [0, 40, 80, 380, 800, 1600],
-            // NH3 in μg/m³ (24-hour average)
-            nh3: [0, 200, 400, 800, 1200, 1800]
+    // Generate realistic demo data when APIs fail
+    const generateDemoAQIData = (lat, lng) => {
+        // Base AQI on location (urban areas typically have higher pollution)
+        const isUrbanArea = Math.abs(lat - 28.6139) < 2 && Math.abs(lng - 77.2090) < 2; // Near Delhi
+        const baseConcentration = isUrbanArea ? 40 + Math.random() * 80 : 15 + Math.random() * 30;
+
+        // Generate realistic pollutant concentrations (μg/m³)
+        const pollutants = {
+            pm2_5: baseConcentration + Math.random() * 20,
+            pm10: (baseConcentration + Math.random() * 30) * 1.5,
+            no2: baseConcentration * 0.8 + Math.random() * 15,
+            o3: baseConcentration * 1.2 + Math.random() * 25,
+            co: (baseConcentration * 50 + Math.random() * 1000),
+            so2: baseConcentration * 0.3 + Math.random() * 10
         };
 
-        const scale = [0, 50, 100, 200, 300, 400];
+        // Calculate AQI from the demo pollutants
+        const calculatedAQI = calculateRealAQIFromPollutants(pollutants);
+
+        return {
+            aqi: calculatedAQI.aqi,
+            dominant: calculatedAQI.dominant,
+            pollutants: pollutants,
+            source: 'Demo Data (OpenWeather unavailable)',
+            city: 'Demo Location',
+            isReal: false,
+            calculation: calculatedAQI.details
+        };
+    };
+
+    // Calculate real AQI from pollutant particles using US EPA AQI formula
+    const calculateRealAQIFromPollutants = (components) => {
+        if (!components || typeof components !== 'object') {
+            console.warn('Invalid components data for AQI calculation');
+            return { aqi: 50, dominant: 'pm2_5', details: {} };
+        }
+
+        console.log('🧮 Calculating real AQI from pollutant particles...');
+
+        // US EPA AQI breakpoints (more accurate than Indian CPCB)
+        const breakpoints = {
+            // PM2.5 in μg/m³ (24-hour average)
+            pm2_5: {
+                concentrations: [0, 12.0, 35.4, 55.4, 150.4, 250.4, 350.4, 500.4],
+                aqiValues: [0, 50, 100, 150, 200, 300, 400, 500]
+            },
+            // PM10 in μg/m³ (24-hour average)  
+            pm10: {
+                concentrations: [0, 54, 154, 254, 354, 424, 504, 604],
+                aqiValues: [0, 50, 100, 150, 200, 300, 400, 500]
+            },
+            // NO2 in μg/m³ (1-hour average) - convert from ppb
+            no2: {
+                concentrations: [0, 53, 100, 360, 649, 1249, 1649, 2049],
+                aqiValues: [0, 50, 100, 150, 200, 300, 400, 500]
+            },
+            // O3 in μg/m³ (8-hour average) - convert from ppb
+            o3: {
+                concentrations: [0, 108, 140, 168, 208, 748, 944, 1200],
+                aqiValues: [0, 50, 100, 150, 200, 300, 400, 500]
+            },
+            // CO in μg/m³ (8-hour average) - convert from ppm
+            co: {
+                concentrations: [0, 4400, 9400, 12400, 15400, 30400, 40400, 50400],
+                aqiValues: [0, 50, 100, 150, 200, 300, 400, 500]
+            },
+            // SO2 in μg/m³ (1-hour average) - convert from ppb
+            so2: {
+                concentrations: [0, 35, 75, 185, 304, 604, 804, 1004],
+                aqiValues: [0, 50, 100, 150, 200, 300, 400, 500]
+            }
+        };
+
+        const calculateIndividualAQI = (pollutant, concentration) => {
+            const bp = breakpoints[pollutant];
+            if (!bp) return 0;
+
+            // Find the correct breakpoint range
+            for (let i = 0; i < bp.concentrations.length - 1; i++) {
+                if (concentration >= bp.concentrations[i] && concentration <= bp.concentrations[i + 1]) {
+                    // Linear interpolation formula: AQI = ((AQI_hi - AQI_lo) / (C_hi - C_lo)) * (C - C_lo) + AQI_lo
+                    const aqiLo = bp.aqiValues[i];
+                    const aqiHi = bp.aqiValues[i + 1];
+                    const cLo = bp.concentrations[i];
+                    const cHi = bp.concentrations[i + 1];
+
+                    const aqi = ((aqiHi - aqiLo) / (cHi - cLo)) * (concentration - cLo) + aqiLo;
+                    return Math.round(aqi);
+                }
+            }
+
+            // Handle values above the highest breakpoint
+            if (concentration > bp.concentrations[bp.concentrations.length - 1]) {
+                return 500; // Cap at hazardous
+            }
+
+            return 0;
+        };
 
         let maxAQI = 0;
         let dominant = '';
         let aqiDetails = {};
 
-        for (const key in breakpoints) {
-            if (components[key] !== undefined) {
-                let val = components[key];
+        // Calculate AQI for each available pollutant
+        Object.keys(components).forEach(pollutant => {
+            if (breakpoints[pollutant]) {
+                const concentration = components[pollutant];
+                const individualAQI = calculateIndividualAQI(pollutant, concentration);
 
-                // Convert CO from μg/m³ to mg/m³ for calculation
-                if (key === 'co') {
-                    val = val / 1000;
-                }
+                aqiDetails[pollutant] = {
+                    concentration: concentration,
+                    aqi: individualAQI,
+                    unit: pollutant === 'co' ? 'μg/m³' : 'μg/m³'
+                };
 
-                const bp = breakpoints[key];
-                let calculatedAQI = 0;
+                console.log(`  ${pollutant.toUpperCase()}: ${concentration} μg/m³ → AQI ${individualAQI}`);
 
-                // Find the correct breakpoint range
-                for (let i = 0; i < bp.length - 1; i++) {
-                    if (val >= bp[i] && val <= bp[i + 1]) {
-                        calculatedAQI = ((scale[i + 1] - scale[i]) / (bp[i + 1] - bp[i])) * (val - bp[i]) + scale[i];
-                        break;
-                    }
-                }
-
-                // Handle values above the highest breakpoint
-                if (val > bp[bp.length - 1]) {
-                    calculatedAQI = 400; // Cap at Very Unhealthy
-                }
-
-                calculatedAQI = Math.round(calculatedAQI);
-                aqiDetails[key] = calculatedAQI;
-
-                if (calculatedAQI > maxAQI) {
-                    maxAQI = calculatedAQI;
-                    dominant = key;
+                if (individualAQI > maxAQI) {
+                    maxAQI = individualAQI;
+                    dominant = pollutant;
                 }
             }
-        }
+        });
 
         // Ensure minimum realistic AQI for urban areas
-        if (maxAQI < 20 && Object.keys(components).length > 0) {
-            maxAQI = 20 + Math.floor(Math.random() * 30); // 20-50 range
+        if (maxAQI < 10) {
+            maxAQI = 15 + Math.floor(Math.random() * 25); // 15-40 range for clean areas
         }
 
-        console.log('Raw API Data:', components);
-        console.log('Individual AQI Values:', aqiDetails);
-        console.log('Final AQI:', maxAQI, 'Dominant Pollutant:', dominant);
+        console.log(`🏆 Final AQI: ${maxAQI}, Dominant: ${dominant.toUpperCase()}`);
+        console.log('📋 Individual AQI values:', aqiDetails);
 
-        return { aqi: maxAQI, dominant, details: aqiDetails };
+        return {
+            aqi: maxAQI,
+            dominant: dominant,
+            details: aqiDetails
+        };
+    };
+
+
+
+    const calculateIndianAQI = (components) => {
+        // Use CPCB standards for Indian AQI calculation
+        return calculateIndianCPCBAQI(components);
     };
 
     const getPollutantDescription = (pollutant) => {
@@ -1093,8 +1538,25 @@ const OxyRoute = () => {
     };
 
     const renderChartWithLimits = (pollutants) => {
+        // Convert WAQI format to standard format if needed
+        const normalizedPollutants = {};
+
+        if (pollutants) {
+            Object.keys(pollutants).forEach(key => {
+                if (typeof pollutants[key] === 'object' && pollutants[key].v !== undefined) {
+                    // WAQI format: {v: value}
+                    normalizedPollutants[key] = pollutants[key].v;
+                } else if (typeof pollutants[key] === 'number') {
+                    // Direct value format
+                    normalizedPollutants[key] = pollutants[key];
+                }
+            });
+        }
+
+        console.log('📊 Normalized pollutants for charts:', normalizedPollutants);
+
         // Process and normalize pollutant data
-        const processedData = processPollutantData(pollutants);
+        const processedData = processPollutantData(normalizedPollutants);
 
         // Create multiple charts
         createPollutantComparisonChart(processedData);
@@ -1105,9 +1567,15 @@ const OxyRoute = () => {
     };
 
     const processPollutantData = (pollutants) => {
+        // Ensure we have valid pollutant data
+        if (!pollutants || typeof pollutants !== 'object') {
+            console.warn('Invalid pollutants data:', pollutants);
+            return { processed: {}, whoLimits: {}, riskLevels: {} };
+        }
+
         // Convert CO from μg/m³ to mg/m³ for proper display
         const processed = { ...pollutants };
-        if (processed.co) {
+        if (processed.co && typeof processed.co === 'number') {
             processed.co = processed.co / 1000; // Convert μg/m³ to mg/m³
         }
 
@@ -1193,10 +1661,10 @@ const OxyRoute = () => {
                     display: true,
                     text: '🧪 Pollutant Levels vs WHO Safe Limits',
                     font: { size: 16, weight: 'bold' },
-                    color: '#374151'
+                    color: '#ffffff'
                 },
                 legend: {
-                    labels: { color: '#374151', font: { size: 12 } }
+                    labels: { color: '#ffffff', font: { size: 12 } }
                 },
                 tooltip: {
                     callbacks: {
@@ -1216,17 +1684,17 @@ const OxyRoute = () => {
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: { color: '#6b7280' },
-                    grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                    ticks: { color: '#e5e7eb' },
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
                     title: {
                         display: true,
                         text: 'Concentration',
-                        color: '#374151'
+                        color: '#ffffff'
                     }
                 },
                 x: {
-                    ticks: { color: '#6b7280', maxRotation: 45 },
-                    grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                    ticks: { color: '#e5e7eb', maxRotation: 45 },
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
                 }
             }
         };
@@ -1263,12 +1731,12 @@ const OxyRoute = () => {
                     display: true,
                     text: '🥧 Pollutant Distribution',
                     font: { size: 16, weight: 'bold' },
-                    color: '#374151'
+                    color: '#ffffff'
                 },
                 legend: {
                     position: 'bottom',
                     labels: {
-                        color: '#374151',
+                        color: '#ffffff',
                         padding: 15,
                         usePointStyle: true
                     }
@@ -1325,10 +1793,10 @@ const OxyRoute = () => {
                     display: true,
                     text: '🎯 Health Risk Radar',
                     font: { size: 16, weight: 'bold' },
-                    color: '#374151'
+                    color: '#ffffff'
                 },
                 legend: {
-                    labels: { color: '#374151' }
+                    labels: { color: '#ffffff' }
                 }
             },
             scales: {
@@ -1337,13 +1805,13 @@ const OxyRoute = () => {
                     max: 300,
                     ticks: {
                         stepSize: 50,
-                        color: '#6b7280',
+                        color: '#e5e7eb',
                         callback: function (value) {
                             return value + '%';
                         }
                     },
-                    grid: { color: 'rgba(0, 0, 0, 0.1)' },
-                    angleLines: { color: 'rgba(0, 0, 0, 0.1)' }
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    angleLines: { color: 'rgba(255, 255, 255, 0.1)' }
                 }
             }
         };
@@ -1394,12 +1862,12 @@ const OxyRoute = () => {
                     display: true,
                     text: '🍩 Health Impact Categories',
                     font: { size: 16, weight: 'bold' },
-                    color: '#374151'
+                    color: '#ffffff'
                 },
                 legend: {
                     position: 'bottom',
                     labels: {
-                        color: '#374151',
+                        color: '#ffffff',
                         padding: 15,
                         usePointStyle: true
                     }
@@ -1455,12 +1923,12 @@ const OxyRoute = () => {
                     display: true,
                     text: '🌟 AQI Contribution Analysis',
                     font: { size: 16, weight: 'bold' },
-                    color: '#374151'
+                    color: '#ffffff'
                 },
                 legend: {
                     position: 'bottom',
                     labels: {
-                        color: '#374151',
+                        color: '#ffffff',
                         padding: 10,
                         usePointStyle: true
                     }
@@ -1469,8 +1937,8 @@ const OxyRoute = () => {
             scales: {
                 r: {
                     beginAtZero: true,
-                    ticks: { color: '#6b7280' },
-                    grid: { color: 'rgba(0, 0, 0, 0.1)' }
+                    ticks: { color: '#e5e7eb' },
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
                 }
             }
         };
@@ -1480,19 +1948,24 @@ const OxyRoute = () => {
 
     const showRoutes = () => {
         console.log('🗺️ showRoutes called - Simple route display');
-        console.log('directionsService:', directionsService);
-        console.log('startLocation:', startLocation);
-        console.log('endLocation:', endLocation);
 
         if (!directionsService) {
-            alert('Google Maps is not loaded yet. Please wait a moment and try again.');
+            alert('🗺️ Google Maps is still loading. Please wait a moment and try again.');
             return;
         }
 
-        if (!startLocation || !endLocation) {
-            alert('Please enter both start and end locations.');
+        if (!startLocation.trim() || !endLocation.trim()) {
+            alert('📍 Please enter both start and end locations.');
             return;
         }
+
+        if (startLocation.trim() === endLocation.trim()) {
+            alert('⚠️ Start and end locations cannot be the same.');
+            return;
+        }
+
+        console.log('📍 Start:', startLocation);
+        console.log('📍 End:', endLocation);
 
         clearMap();
 
@@ -1502,7 +1975,7 @@ const OxyRoute = () => {
             travelMode: 'DRIVING',
             provideRouteAlternatives: true,
         }, (result, status) => {
-            if (status === 'OK') {
+            if (status === 'OK' && result.routes && result.routes.length > 0) {
                 console.log(`📍 Found ${result.routes.length} route alternatives`);
 
                 // Sort routes by distance (shortest first)
@@ -1514,6 +1987,46 @@ const OxyRoute = () => {
 
                 const newRenderers = [];
                 const newMarkers = [];
+
+                // Add clean start and end markers (only once)
+                const firstRoute = sortedRoutes[0];
+                const firstLeg = firstRoute.legs[0];
+
+                // Start marker (A)
+                const startMarker = new window.google.maps.Marker({
+                    position: firstLeg.start_location,
+                    map,
+                    title: 'Start: ' + startLocation,
+                    icon: {
+                        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="16" cy="16" r="14" fill="#4CAF50" stroke="#fff" stroke-width="2"/>
+                                <text x="16" y="21" text-anchor="middle" fill="white" font-family="Arial" font-size="14" font-weight="bold">A</text>
+                            </svg>
+                        `),
+                        scaledSize: new window.google.maps.Size(32, 32),
+                        anchor: new window.google.maps.Point(16, 16)
+                    }
+                });
+
+                // End marker (B)
+                const endMarker = new window.google.maps.Marker({
+                    position: firstLeg.end_location,
+                    map,
+                    title: 'End: ' + endLocation,
+                    icon: {
+                        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="16" cy="16" r="14" fill="#F44336" stroke="#fff" stroke-width="2"/>
+                                <text x="16" y="21" text-anchor="middle" fill="white" font-family="Arial" font-size="14" font-weight="bold">B</text>
+                            </svg>
+                        `),
+                        scaledSize: new window.google.maps.Size(32, 32),
+                        anchor: new window.google.maps.Point(16, 16)
+                    }
+                });
+
+                newMarkers.push(startMarker, endMarker);
 
                 // Display all routes with different colors (no AQI analysis)
                 sortedRoutes.forEach((route, index) => {
@@ -1529,41 +2042,10 @@ const OxyRoute = () => {
                             strokeOpacity: 0.7,
                             strokeWeight: index === 0 ? 6 : 4,
                         },
-                        suppressMarkers: false
+                        suppressMarkers: true // Remove default A and B markers
                     });
-
-                    const leg = route.legs[0];
-                    const marker = new window.google.maps.Marker({
-                        position: leg.end_location,
-                        map,
-                        title: `Route ${index + 1}`,
-                        icon: {
-                            path: window.google.maps.SymbolPath.CIRCLE,
-                            scale: 6,
-                            fillColor: color,
-                            fillOpacity: 0.8,
-                            strokeColor: '#fff',
-                            strokeWeight: 2
-                        }
-                    });
-
-                    const info = new window.google.maps.InfoWindow({
-                        content: `
-                            <div style="padding: 8px; font-family: Arial, sans-serif;">
-                                <h4 style="margin: 0 0 8px 0; color: ${color};">Route ${index + 1} ${index === 0 ? '(Shortest)' : ''}</h4>
-                                <div><strong>📏 Distance:</strong> ${leg.distance.text}</div>
-                                <div><strong>⏱️ Duration:</strong> ${leg.duration.text}</div>
-                                <div style="margin-top: 8px; font-size: 12px; color: #666;">
-                                    ${index === 0 ? '✅ Shortest route' : index === 1 ? '⚠️ Alternative route' : '🔄 Longer route'}
-                                </div>
-                            </div>
-                        `
-                    });
-
-                    marker.addListener('click', () => info.open(map, marker));
 
                     newRenderers.push(renderer);
-                    newMarkers.push(marker);
                 });
 
                 setDirectionsRenderers(newRenderers);
@@ -1588,25 +2070,267 @@ const OxyRoute = () => {
                 setRouteDetails(routeSummary);
                 console.log('✅ Routes displayed successfully!');
             } else {
-                alert('Failed to get directions: ' + status);
+                console.error('❌ Directions request failed:', status);
+                let errorMessage = '❌ Failed to find routes. ';
+
+                switch (status) {
+                    case 'NOT_FOUND':
+                        errorMessage += 'One or both locations could not be found.';
+                        break;
+                    case 'ZERO_RESULTS':
+                        errorMessage += 'No routes could be found between these locations.';
+                        break;
+                    case 'MAX_WAYPOINTS_EXCEEDED':
+                        errorMessage += 'Too many waypoints in the request.';
+                        break;
+                    case 'INVALID_REQUEST':
+                        errorMessage += 'Invalid request. Please check your locations.';
+                        break;
+                    case 'OVER_QUERY_LIMIT':
+                        errorMessage += 'API quota exceeded. Please try again later.';
+                        break;
+                    case 'REQUEST_DENIED':
+                        errorMessage += 'Request denied. Please check API configuration.';
+                        break;
+                    case 'UNKNOWN_ERROR':
+                        errorMessage += 'Unknown error occurred. Please try again.';
+                        break;
+                    default:
+                        errorMessage += `Error: ${status}`;
+                }
+
+                alert(errorMessage);
             }
         });
     };
 
 
 
+    // Display side-by-side comparison of all 3 routes
+    const displayRouteComparison = (routeAnalysis, healthiest, directionsResult) => {
+        console.log('🎨 Creating route comparison display...');
+
+        // Set the selected route data for the main display
+        setLatestPollutants(healthiest.pollutants);
+        setLatestAQI(healthiest.meanAQI);
+        setDominantPollutant(healthiest.dominant);
+
+        // Render the selected route on the map
+        const index = directionsResult.routes.findIndex(r => r === healthiest.route);
+        const renderer = new window.google.maps.DirectionsRenderer({
+            map,
+            directions: directionsResult,
+            routeIndex: index,
+            polylineOptions: {
+                strokeColor: '#00ff7f',
+                strokeOpacity: 1,
+                strokeWeight: 6,
+            },
+        });
+
+        setDirectionsRenderers([renderer]);
+
+        const leg = healthiest.route.legs[0];
+        setLatestRouteInfo({
+            start: startLocation,
+            end: endLocation,
+            distance: leg.distance.text,
+            duration: leg.duration.text
+        });
+
+        // Create detailed comparison HTML
+        const comparisonHTML = `
+            <div style="
+                background: rgba(255, 255, 255, 0.08); 
+                backdrop-filter: blur(40px) saturate(200%) brightness(1.2);
+                -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.2);
+                color: #ffffff; 
+                padding: 32px; 
+                border-radius: 32px; 
+                box-shadow: 
+                  0 25px 80px rgba(0, 0, 0, 0.6),
+                  0 12px 40px rgba(0, 0, 0, 0.4),
+                  inset 0 2px 0 rgba(255, 255, 255, 0.2);
+                max-width: 1200px; 
+                margin: 24px auto; 
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            ">
+                <!-- Header -->
+                <div style="text-align: center; margin-bottom: 32px;">
+                    <h2 style="
+                        color: #00ff7f; 
+                        text-shadow: 0 0 20px rgba(0, 255, 127, 0.6);
+                        margin: 0 0 16px 0; 
+                        font-size: 28px; 
+                        font-weight: 700;
+                    ">
+                        🏆 Route Analysis Complete
+                    </h2>
+                    <div style="
+                        display: inline-block; 
+                        padding: 12px 24px; 
+                        border-radius: 50px; 
+                        font-weight: 700; 
+                        font-size: 18px;
+                        color: #fff; 
+                        background: linear-gradient(135deg, #00ff7f, #00cc66);
+                        box-shadow: 0 8px 25px rgba(0, 255, 127, 0.3);
+                        border: 2px solid rgba(255, 255, 255, 0.3);
+                    ">
+                        Selected: Route ${healthiest.routeNumber} (Mean AQI: ${healthiest.meanAQI})
+                    </div>
+                </div>
+
+                <!-- Route Comparison Grid -->
+                <div style="
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+                    gap: 20px; 
+                    margin-bottom: 32px;
+                ">
+                    ${routeAnalysis.map((route, index) => `
+                        <div style="
+                            background: ${route.routeNumber === healthiest.routeNumber ?
+                'linear-gradient(135deg, rgba(0, 255, 127, 0.2), rgba(0, 204, 102, 0.1))' :
+                'rgba(255, 255, 255, 0.05)'
+            }; 
+                            padding: 24px; 
+                            border-radius: 16px; 
+                            border: 2px solid ${route.routeNumber === healthiest.routeNumber ? '#00ff7f' : 'rgba(255, 255, 255, 0.1)'};
+                            position: relative;
+                            ${route.routeNumber === healthiest.routeNumber ? 'box-shadow: 0 0 30px rgba(0, 255, 127, 0.3);' : ''}
+                        ">
+                            ${route.routeNumber === healthiest.routeNumber ?
+                '<div style="position: absolute; top: -10px; right: 16px; background: #00ff7f; color: #000; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold;">SELECTED</div>' :
+                ''
+            }
+                            
+                            <div style="text-align: center; margin-bottom: 16px;">
+                                <h3 style="
+                                    color: ${route.routeNumber === healthiest.routeNumber ? '#00ff7f' : '#ffffff'}; 
+                                    margin: 0 0 8px 0; 
+                                    font-size: 20px; 
+                                    font-weight: 600;
+                                ">
+                                    Route ${route.routeNumber}
+                                </h3>
+                                <div style="
+                                    font-size: 32px; 
+                                    font-weight: 700; 
+                                    color: ${getAQIColor(route.meanAQI)};
+                                    text-shadow: 0 0 10px ${getAQIColor(route.meanAQI)}50;
+                                ">
+                                    ${route.meanAQI}
+                                </div>
+                                <div style="font-size: 12px; color: #b0b0b0;">Mean AQI</div>
+                            </div>
+
+                            <!-- Route Details -->
+                            <div style="
+                                display: grid; 
+                                grid-template-columns: 1fr 1fr; 
+                                gap: 12px; 
+                                margin-bottom: 16px;
+                                font-size: 14px;
+                            ">
+                                <div style="text-align: center; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                                    <div style="color: #3b82f6; font-weight: 600;">DISTANCE</div>
+                                    <div style="color: #ffffff; font-weight: 700;">${route.distance}</div>
+                                </div>
+                                <div style="text-align: center; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                                    <div style="color: #10b981; font-weight: 600;">DURATION</div>
+                                    <div style="color: #ffffff; font-weight: 700;">${route.duration}</div>
+                                </div>
+                            </div>
+
+                            <!-- AQI Range -->
+                            <div style="
+                                background: rgba(0,0,0,0.2); 
+                                padding: 12px; 
+                                border-radius: 8px; 
+                                margin-bottom: 16px;
+                            ">
+                                <div style="font-size: 12px; color: #b0b0b0; margin-bottom: 8px;">AQI Range (3 points)</div>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: ${getAQIColor(route.minAQI)}; font-weight: 600;">${route.minAQI}</span>
+                                    <div style="flex: 1; height: 4px; background: linear-gradient(to right, ${getAQIColor(route.minAQI)}, ${getAQIColor(route.maxAQI)}); margin: 0 8px; border-radius: 2px;"></div>
+                                    <span style="color: ${getAQIColor(route.maxAQI)}; font-weight: 600;">${route.maxAQI}</span>
+                                </div>
+                            </div>
+
+                            <!-- Checkpoints -->
+                            <div style="font-size: 12px; color: #b0b0b0;">
+                                <div style="margin-bottom: 4px;">Checkpoints (3 points):</div>
+                                ${route.checkpointData ? route.checkpointData.map(checkpoint => `
+                                    <div style="margin: 2px 0; padding: 4px 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+                                        Checkpoint ${checkpoint.checkpointNumber} (${checkpoint.position}): AQI ${checkpoint.aqi}
+                                    </div>
+                                `).join('') : '<div>No checkpoint data available</div>'}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <!-- Algorithm Explanation -->
+                <div style="
+                    background: rgba(59, 130, 246, 0.1); 
+                    padding: 20px; 
+                    border-radius: 16px; 
+                    border: 1px solid rgba(59, 130, 246, 0.3);
+                    text-align: center;
+                ">
+                    <h3 style="color: #3b82f6; margin: 0 0 12px 0; font-size: 18px;">🧮 Algorithm Explanation</h3>
+                    <div style="font-size: 14px; color: #e0e0e0; line-height: 1.6;">
+                        <strong>Step 1:</strong> Analyzed top 3 routes from Google Maps<br>
+                        <strong>Step 2:</strong> Extracted 3 checkpoints at 25%, 50%, 75% along each route<br>
+                        <strong>Step 3:</strong> Fetched pollutant data (PM2.5, PM10, NO2, O3, CO, SO2) from OpenWeather API<br>
+                        <strong>Step 4:</strong> Calculated AQI using CPCB Indian standards - maximum AQI among all pollutants<br>
+                        <strong>Step 5:</strong> Calculated average AQI for each route from 3 checkpoints<br>
+                        <strong>Step 6:</strong> Selected route with <strong>lowest average AQI</strong> = healthiest route
+                    </div>
+                </div>
+            </div>
+        `;
+
+        setRouteDetails(comparisonHTML);
+
+        // Render charts with the selected route's data
+        if (healthiest.pollutants) {
+            renderChartWithLimits(healthiest.pollutants);
+        }
+
+        // Create route comparison map after DOM is ready
+        setTimeout(() => {
+            console.log('🗺️ Creating route comparison map...');
+            createRouteComparisonMap(routeAnalysis, directionsResult);
+        }, 1000);
+
+        // Auto-generate AI insights
+        setTimeout(() => {
+            console.log('🤖 Auto-generating AI insights for selected route...');
+            generateAIInsights();
+        }, 500);
+    };
+
     const showHealthiestRoute = async () => {
-        console.log('showHealthiestRoute called');
+        console.log('🌿 showHealthiestRoute called');
 
         if (!directionsService) {
-            alert('Google Maps is not loaded yet. Please wait a moment and try again.');
+            alert('🗺️ Google Maps is still loading. Please wait a moment and try again.');
             return;
         }
 
-        if (!startLocation || !endLocation) {
-            alert('Please enter both start and end locations.');
+        if (!startLocation.trim() || !endLocation.trim()) {
+            alert('📍 Please enter both start and end locations.');
             return;
         }
+
+        if (startLocation.trim() === endLocation.trim()) {
+            alert('⚠️ Start and end locations cannot be the same.');
+            return;
+        }
+
+        console.log('📍 Analyzing healthiest route from:', startLocation, 'to:', endLocation);
 
         clearMap();
 
@@ -1616,95 +2340,154 @@ const OxyRoute = () => {
             travelMode: 'DRIVING',
             provideRouteAlternatives: true,
         }, async (result, status) => {
-            if (status === 'OK') {
-                const aqiResults = [];
+            if (status === 'OK' && result.routes && result.routes.length > 0) {
+                console.log(`🗺️ Found ${result.routes.length} routes, analyzing top 3...`);
 
-                for (const [index, route] of result.routes.entries()) {
-                    const steps = route.legs[0].steps;
+                // Get top 3 routes (Google Maps already sorts by best routes)
+                const top3Routes = result.routes.slice(0, 3);
+                const routeAnalysis = [];
 
-                    // IMPROVED: Take multiple sampling points along the route
-                    const samplingPoints = [];
-                    const numSamples = Math.min(5, steps.length); // Max 5 samples or total steps if less
+                for (const [index, route] of top3Routes.entries()) {
+                    console.log(`\n🔍 Analyzing Route ${index + 1}:`);
+                    const leg = route.legs[0];
+                    console.log(`  Distance: ${leg.distance.text}, Duration: ${leg.duration.text}`);
 
-                    for (let i = 0; i < numSamples; i++) {
-                        const stepIndex = Math.floor((steps.length - 1) * i / (numSamples - 1));
+                    // Get exactly 3 checkpoints along the route (25%, 50%, 75%)
+                    const steps = leg.steps;
+                    const checkpoints = [];
+
+                    // Sample at exactly 25%, 50%, and 75% of the route
+                    const checkpointPositions = [0.25, 0.5, 0.75];
+
+                    for (const position of checkpointPositions) {
+                        const stepIndex = Math.floor((steps.length - 1) * position);
                         const step = steps[stepIndex];
-                        samplingPoints.push({
+                        checkpoints.push({
                             location: step.end_location,
                             stepIndex: stepIndex,
+                            position: `${(position * 100)}%`,
                             coordinates: `${step.end_location.lat()}, ${step.end_location.lng()}`
                         });
                     }
 
-                    console.log(`Route ${index + 1} - Sampling ${samplingPoints.length} points:`);
-                    samplingPoints.forEach((point, i) => {
-                        console.log(`  Point ${i + 1}: Step ${point.stepIndex}, Coords: ${point.coordinates}`);
-                    });
+                    console.log(`  📍 Extracting 3 checkpoints: ${checkpoints.map(p => p.position).join(', ')}`);
 
-                    // Fetch AQI data for all sampling points
-                    const routeAQIData = [];
-                    for (const point of samplingPoints) {
-                        const airUrl = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${point.location.lat()}&lon=${point.location.lng()}&appid=${airApiKey}`;
-
+                    // Fetch pollution data for exactly 3 checkpoints
+                    const checkpointAQIData = [];
+                    for (const [checkpointIndex, checkpoint] of checkpoints.entries()) {
                         try {
-                            const response = await fetch(airUrl);
-                            const data = await response.json();
-                            const pollutants = data.list[0].components;
-                            const calculated = calculateIndianAQI(pollutants, startLocation);
+                            console.log(`\n    📡 Route ${index + 1} - Checkpoint ${checkpointIndex + 1}:`);
+                            console.log(`       Coordinates: ${checkpoint.coordinates} (${checkpoint.position})`);
 
-                            routeAQIData.push({
-                                coordinates: point.coordinates,
-                                stepIndex: point.stepIndex,
-                                aqi: calculated.aqi,
-                                dominant: calculated.dominant,
-                                pollutants: pollutants
-                            });
+                            const pollutionData = await fetchOpenWeatherAQI(checkpoint.location.lat(), checkpoint.location.lng());
 
-                            console.log(`    AQI: ${calculated.aqi}, Dominant: ${calculated.dominant}`);
+                            if (pollutionData && pollutionData.pollutants) {
+                                // Display raw pollutant data as you specified
+                                const pollutants = pollutionData.pollutants;
+                                console.log(`       PM2.5: ${pollutants.pm2_5 || 0}, PM10: ${pollutants.pm10 || 0}, NO2: ${pollutants.no2 || 0}, SO2: ${pollutants.so2 || 0}, CO: ${pollutants.co || 0}, O3: ${pollutants.o3 || 0}`);
+
+                                // Calculate AQI using CPCB Indian standards
+                                const calculatedAQI = calculateIndianCPCBAQI(pollutants);
+                                console.log(`       Route ${index + 1} - Checkpoint ${checkpointIndex + 1} AQI: ${calculatedAQI.aqi}`);
+
+                                checkpointAQIData.push({
+                                    checkpointNumber: checkpointIndex + 1,
+                                    position: checkpoint.position,
+                                    coordinates: checkpoint.coordinates,
+                                    aqi: calculatedAQI.aqi,
+                                    dominant: calculatedAQI.dominant,
+                                    pollutants: pollutants,
+                                    individualAQIs: calculatedAQI.details,
+                                    source: pollutionData.source
+                                });
+                            } else {
+                                console.log(`       ❌ No pollution data available for checkpoint ${checkpointIndex + 1}`);
+                            }
                         } catch (error) {
-                            console.error(`Error fetching AQI for point ${point.coordinates}:`, error);
+                            console.error(`       ❌ Error fetching data for checkpoint ${checkpointIndex + 1}:`, error.message);
                         }
                     }
 
-                    // Calculate average AQI for the entire route
-                    if (routeAQIData.length > 0) {
-                        const avgAQI = Math.round(routeAQIData.reduce((sum, data) => sum + data.aqi, 0) / routeAQIData.length);
-                        const maxAQI = Math.max(...routeAQIData.map(data => data.aqi));
-                        const minAQI = Math.min(...routeAQIData.map(data => data.aqi));
+                    // Calculate average AQI for this route (from 3 checkpoints)
+                    if (checkpointAQIData.length > 0) {
+                        const checkpointAQIs = checkpointAQIData.map(data => data.aqi);
+                        const averageAQI = Math.round(checkpointAQIs.reduce((sum, aqi) => sum + aqi, 0) / checkpointAQIs.length);
+                        const maxAQI = Math.max(...checkpointAQIs);
+                        const minAQI = Math.min(...checkpointAQIs);
 
-                        // HEALTHIEST ROUTE: Balance air quality with practicality (distance/time)
-                        // 50% average AQI + 25% max AQI + 15% distance penalty + 10% time penalty
-                        const leg = route.legs[0];
-                        const distancePenalty = Math.min(leg.distance.value / 15000, 8); // Max 8 points penalty for long routes
-                        const timePenalty = Math.min(leg.duration.value / 3600, 5); // Max 5 points penalty for 1+ hour routes
-                        const weightedAQI = Math.round(avgAQI * 0.5 + maxAQI * 0.25 + distancePenalty + timePenalty);
+                        // Combine pollutant data from all 3 checkpoints (average concentrations)
+                        const combinedPollutants = {};
+                        const pollutantKeys = ['pm2_5', 'pm10', 'no2', 'o3', 'co', 'so2'];
 
-                        // Find dominant pollutant from the worst sampling point
-                        const worstPoint = routeAQIData.find(data => data.aqi === maxAQI);
+                        pollutantKeys.forEach(pollutant => {
+                            const values = checkpointAQIData
+                                .map(data => data.pollutants[pollutant] || 0)
+                                .filter(val => val > 0);
 
-                        console.log(`Route ${index + 1} HEALTHIEST Analysis:`);
-                        console.log(`  Distance: ${leg.distance.text}, Duration: ${leg.duration.text}`);
-                        console.log(`  Average AQI: ${avgAQI}, Max AQI: ${maxAQI}, Min AQI: ${minAQI}`);
-                        console.log(`  Distance Penalty: ${distancePenalty.toFixed(1)}, Time Penalty: ${timePenalty.toFixed(1)}`);
-                        console.log(`  Final Healthiest Score: ${weightedAQI}, Dominant: ${worstPoint.dominant}`);
-                        console.log("-----");
+                            if (values.length > 0) {
+                                combinedPollutants[pollutant] = values.reduce((sum, val) => sum + val, 0) / values.length;
+                            }
+                        });
 
-                        aqiResults.push({
-                            route,
-                            aqi: weightedAQI,
-                            avgAQI: avgAQI,
+                        // Find dominant pollutant from the worst checkpoint
+                        const worstCheckpoint = checkpointAQIData.find(data => data.aqi === maxAQI) || checkpointAQIData[0];
+
+                        console.log(`\n  📊 Route ${index + 1} AQIs: [${checkpointAQIs.join(', ')}]`);
+                        console.log(`  📊 Average AQI (Route ${index + 1}): ${averageAQI}`);
+                        console.log(`  📊 Range: ${minAQI} - ${maxAQI}`);
+                        console.log(`  📊 Dominant: ${worstCheckpoint.dominant}`);
+
+                        routeAnalysis.push({
+                            routeNumber: index + 1,
+                            route: route,
+                            meanAQI: averageAQI,
                             maxAQI: maxAQI,
                             minAQI: minAQI,
-                            dominant: worstPoint.dominant,
-                            pollutants: worstPoint.pollutants,
-                            samplingData: routeAQIData
+                            dominant: worstCheckpoint.dominant,
+                            pollutants: combinedPollutants, // Combined from all 3 checkpoints
+                            checkpointData: checkpointAQIData,
+                            distance: leg.distance.text,
+                            duration: leg.duration.text
                         });
+                    } else {
+                        console.log(`  ❌ Route ${index + 1}: No AQI data available from checkpoints`);
                     }
                 }
 
-                const healthiest = aqiResults.reduce((a, b) => (a.aqi < b.aqi ? a : b));
+                // Route Comparison and Recommendation
+                if (routeAnalysis.length > 0) {
+                    console.log(`\n🧠 Route Comparison Summary:`);
+                    console.log(`Route | Checkpoint AQIs | Average AQI | Remark`);
+                    console.log(`------|----------------|-------------|--------`);
+
+                    routeAnalysis.forEach(route => {
+                        const checkpointAQIs = route.checkpointData.map(cp => cp.aqi).join(', ');
+                        const remark = route.meanAQI <= 50 ? 'Good ✅' :
+                            route.meanAQI <= 100 ? 'Moderate' :
+                                route.meanAQI <= 200 ? 'Unhealthy' : 'Very Unhealthy';
+                        console.log(`Route ${route.routeNumber} | ${checkpointAQIs} | ${route.meanAQI} | ${remark}`);
+                    });
+
+                    // Select the route with the LOWEST average AQI
+                    const healthiest = routeAnalysis.reduce((best, current) =>
+                        current.meanAQI < best.meanAQI ? current : best
+                    );
+
+                    console.log(`\n🏆 Result: Route ${healthiest.routeNumber} is selected as the healthiest route because it has the lowest average AQI.`);
+                    console.log(`✅ Route ${healthiest.routeNumber} selected with Average AQI: ${healthiest.meanAQI}`);
+
+                    // Display the comparison and selected route
+                    displayRouteComparison(routeAnalysis, healthiest, result);
+                } else {
+                    alert('❌ Could not analyze any routes due to AQI data unavailability');
+                    return;
+                }
+
+                const healthiest = routeAnalysis.reduce((best, current) =>
+                    current.meanAQI < best.meanAQI ? current : best
+                );
                 setLatestPollutants(healthiest.pollutants);
-                setLatestAQI(healthiest.aqi);
+                setLatestAQI(healthiest.meanAQI);
                 setDominantPollutant(healthiest.dominant);
 
                 const index = result.routes.findIndex(r => r === healthiest.route);
@@ -1712,6 +2495,7 @@ const OxyRoute = () => {
                     map,
                     directions: result,
                     routeIndex: index,
+                    suppressMarkers: true, // This removes the A and B markers
                     polylineOptions: {
                         strokeColor: '#006400',
                         strokeOpacity: 1,
@@ -1719,9 +2503,46 @@ const OxyRoute = () => {
                     },
                 });
 
-                setDirectionsRenderers([renderer]);
-
+                // Add clean start and end markers for healthiest route
                 const leg = healthiest.route.legs[0];
+
+                // Start marker (A) - Green for healthiest route
+                const startMarker = new window.google.maps.Marker({
+                    position: leg.start_location,
+                    map,
+                    title: 'Start: ' + startLocation,
+                    icon: {
+                        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="16" cy="16" r="14" fill="#00ff7f" stroke="#fff" stroke-width="2"/>
+                                <text x="16" y="21" text-anchor="middle" fill="white" font-family="Arial" font-size="14" font-weight="bold">A</text>
+                            </svg>
+                        `),
+                        scaledSize: new window.google.maps.Size(32, 32),
+                        anchor: new window.google.maps.Point(16, 16)
+                    }
+                });
+
+                // End marker (B) - Green for healthiest route
+                const endMarker = new window.google.maps.Marker({
+                    position: leg.end_location,
+                    map,
+                    title: 'End: ' + endLocation,
+                    icon: {
+                        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="16" cy="16" r="14" fill="#00ff7f" stroke="#fff" stroke-width="2"/>
+                                <text x="16" y="21" text-anchor="middle" fill="white" font-family="Arial" font-size="14" font-weight="bold">B</text>
+                            </svg>
+                        `),
+                        scaledSize: new window.google.maps.Size(32, 32),
+                        anchor: new window.google.maps.Point(16, 16)
+                    }
+                });
+
+                setDirectionsRenderers([renderer]);
+                setMarkers([startMarker, endMarker]);
+
                 setLatestRouteInfo({
                     start: startLocation,
                     end: endLocation,
@@ -1797,11 +2618,11 @@ const OxyRoute = () => {
                 font-weight: 700; 
                 font-size: 16px;
                 color: #fff; 
-                background: ${getAQIColor(healthiest.aqi)};
+                background: ${getAQIColor(healthiest.meanAQI)};
                 box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
                 border: 3px solid rgba(255, 255, 255, 0.3);
               ">
-                🏆 AQI: ${healthiest.aqi} (${getAQICategory(healthiest.aqi)})
+                🏆 AQI: ${healthiest.meanAQI} (${getAQICategory(healthiest.meanAQI)})
               </div>
             </div>
 
@@ -1870,12 +2691,12 @@ const OxyRoute = () => {
               </h3>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; text-align: center;">
                 <div>
-                  <div style="font-size: 12px; color: #6b7280; font-weight: 500;">SAMPLING POINTS</div>
-                  <div style="font-size: 20px; font-weight: 700; color: #8b5cf6;">5</div>
+                  <div style="font-size: 12px; color: #6b7280; font-weight: 500;">CHECKPOINTS</div>
+                  <div style="font-size: 20px; font-weight: 700; color: #8b5cf6;">3</div>
                 </div>
                 <div>
                   <div style="font-size: 12px; color: #6b7280; font-weight: 500;">AVERAGE AQI</div>
-                  <div style="font-size: 20px; font-weight: 700; color: #059669;">${healthiest.avgAQI}</div>
+                  <div style="font-size: 20px; font-weight: 700; color: #059669;">${healthiest.meanAQI}</div>
                 </div>
                 <div>
                   <div style="font-size: 12px; color: #6b7280; font-weight: 500;">BEST POINT AQI</div>
@@ -1886,8 +2707,8 @@ const OxyRoute = () => {
                   <div style="font-size: 20px; font-weight: 700; color: #ef4444;">${healthiest.maxAQI}</div>
                 </div>
                 <div>
-                  <div style="font-size: 12px; color: #6b7280; font-weight: 500;">WEIGHTED SCORE</div>
-                  <div style="font-size: 20px; font-weight: 700; color: #3b82f6;">${healthiest.aqi}</div>
+                  <div style="font-size: 12px; color: #6b7280; font-weight: 500;">FINAL AQI</div>
+                  <div style="font-size: 20px; font-weight: 700; color: #3b82f6;">${healthiest.meanAQI}</div>
                 </div>
               </div>
             </div>
@@ -1957,19 +2778,7 @@ const OxyRoute = () => {
           </div>
         `);
 
-                renderChartWithLimits(healthiest.pollutants);
-
-                // Create route comparison map after DOM is ready
-                setTimeout(() => {
-                    console.log('🗺️ Creating route comparison map...');
-                    createRouteComparisonMap(aqiResults, result);
-                }, 1000);
-
-                // Automatically generate AI insights after route is found
-                setTimeout(() => {
-                    console.log('🤖 Auto-generating AI insights for healthiest route...');
-                    generateAIInsights();
-                }, 500);
+                // This is now handled in displayRouteComparison function
             } else {
                 alert('Failed to get directions: ' + status);
             }
@@ -2835,6 +3644,7 @@ Faster routes, often traversing dense urban areas or industrial belts, likely ex
 
     return (
         <>
+
             <div style={styles.fixedBackground}></div>
             <div style={styles.container}>
                 <div style={styles.floatingElements}>
@@ -2943,6 +3753,85 @@ Faster routes, often traversing dense urban areas or industrial belts, likely ex
                         </button>
                         {/* Dark mode toggle removed - using fixed dark glass theme */}
                     </div>
+
+                    {/* Single Place AQI Checker Section */}
+                    <div style={{
+                        ...styles.controls,
+                        marginTop: '30px',
+                        gridTemplateColumns: '1fr auto',
+                        alignItems: 'center'
+                    }}>
+                        <div style={styles.inputContainer}>
+                            <input
+                                ref={singlePlaceInputRef}
+                                style={styles.input}
+                                placeholder="🔍 Check AQI for any location (e.g., Mumbai, Delhi, etc.)"
+                                value={singlePlace}
+                                onChange={(e) => setSinglePlace(e.target.value)}
+                                onFocus={(e) => Object.assign(e.target.style, styles.inputFocus)}
+                                onBlur={(e) => {
+                                    e.target.style.border = '2px solid transparent';
+                                    e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                                    e.target.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+                                    e.target.style.transform = 'translateY(0px)';
+                                }}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                        checkSinglePlaceAQI();
+                                    }
+                                }}
+                            />
+                        </div>
+                        <button
+                            className="button-ripple"
+                            style={{
+                                ...styles.button,
+                                background: loadingSinglePlace ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.2)',
+                                backdropFilter: 'blur(40px) saturate(150%)',
+                                border: '1px solid rgba(139, 92, 246, 0.3)',
+                                color: '#ffffff',
+                                cursor: loadingSinglePlace ? 'not-allowed' : 'pointer',
+                                opacity: loadingSinglePlace ? 0.7 : 1
+                            }}
+                            onClick={checkSinglePlaceAQI}
+                            disabled={loadingSinglePlace}
+                            onMouseEnter={(e) => {
+                                if (!loadingSinglePlace) {
+                                    e.target.style.transform = 'translateY(-5px) scale(1.05)';
+                                    e.target.style.boxShadow = '0 15px 35px rgba(139, 92, 246, 0.4)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (!loadingSinglePlace) {
+                                    e.target.style.transform = 'translateY(0px) scale(1)';
+                                    e.target.style.boxShadow = '0 8px 25px rgba(139, 92, 246, 0.3)';
+                                }
+                            }}
+                        >
+                            {loadingSinglePlace ? (
+                                <>
+                                    <div style={{
+                                        display: 'inline-block',
+                                        width: '16px',
+                                        height: '16px',
+                                        border: '2px solid transparent',
+                                        borderTop: '2px solid #ffffff',
+                                        borderRadius: '50%',
+                                        animation: 'spin 1s linear infinite',
+                                        marginRight: '8px'
+                                    }}></div>
+                                    Checking...
+                                </>
+                            ) : (
+                                '🔍 Check AQI'
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Single Place Results */}
+                    {singlePlaceResults && (
+                        <div dangerouslySetInnerHTML={{ __html: singlePlaceResults }} />
+                    )}
 
                     <div style={styles.mapContainer}>
                         <div ref={mapRef} style={styles.map}></div>

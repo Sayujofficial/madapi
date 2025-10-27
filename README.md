@@ -1,70 +1,167 @@
-# Getting Started with Create React App
+# OxyRoute React - Air Quality Route Optimizer
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React application that finds the healthiest routes between locations by analyzing air quality data along different paths.
 
-## Available Scripts
+## 🚀 Features
 
-In the project directory, you can run:
+- **Smart Route Analysis**: Compares multiple routes and selects the one with the best air quality
+- **Real-time Air Quality Data**: Integrates with OpenWeather and WAQI APIs for accurate pollution data
+- **AI-Powered Insights**: Uses Google Gemini AI to provide health recommendations
+- **Interactive Maps**: Google Maps integration with route visualization
+- **Comprehensive Charts**: Multiple chart types showing pollutant levels and health risks
+- **Export Functionality**: Export data as CSV or PDF reports
 
-### `npm start`
+## 🛠️ Setup Instructions
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 1. Install Dependencies
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```bash
+cd oxyroute-react
+npm install
+```
 
-### `npm test`
+### 2. Configure API Keys
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Copy the example environment file and add your API keys:
 
-### `npm run build`
+```bash
+cp .env.example .env
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Edit `.env` file with your actual API keys:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```env
+# Google Maps API Key (required)
+REACT_APP_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# OpenWeather API Key (required)
+REACT_APP_OPENWEATHER_API_KEY=your_openweather_api_key_here
 
-### `npm run eject`
+# Gemini AI API Key (optional - for AI insights)
+REACT_APP_GEMINI_API_KEY=your_gemini_api_key_here
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# WAQI Token (optional - for additional air quality data)
+REACT_APP_WAQI_TOKEN=your_waqi_token_here
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 3. Get API Keys
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+#### Google Maps API Key (Required)
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing one
+3. Enable "Maps JavaScript API" and "Places API"
+4. Create credentials (API Key)
+5. Restrict the key to your domain for security
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+#### OpenWeather API Key (Required)
+1. Sign up at [OpenWeatherMap](https://openweathermap.org/api)
+2. Get your free API key from the dashboard
+3. The free tier includes air pollution data
 
-## Learn More
+#### Gemini AI API Key (Optional)
+1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create a new API key
+3. This enables AI-powered health insights
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+#### WAQI Token (Optional)
+1. Visit [WAQI Data Platform](https://aqicn.org/data-platform/token/)
+2. Request a free token
+3. This provides additional air quality data sources
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### 4. Run the Application
 
-### Code Splitting
+```bash
+npm start
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+The app will open at `http://localhost:3000`
 
-### Analyzing the Bundle Size
+## 🔧 API Status Testing
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+The app includes a built-in API testing tool in the top-right corner that helps you verify:
+- ✅ Google Maps API is loaded
+- ✅ OpenWeather API is working
+- ✅ Gemini AI API is accessible
+- ✅ WAQI API is responding
 
-### Making a Progressive Web App
+## 🚨 Troubleshooting
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+### Common Issues
 
-### Advanced Configuration
+1. **Google Maps not loading**
+   - Check if your API key is valid
+   - Ensure Maps JavaScript API and Places API are enabled
+   - Verify domain restrictions
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+2. **Air quality data not loading**
+   - Verify OpenWeather API key is correct
+   - Check if you've exceeded API rate limits
+   - Ensure internet connection is stable
 
-### Deployment
+3. **AI insights not generating**
+   - Check Gemini API key is valid
+   - Verify you have API quota remaining
+   - The app will fall back to local insights if AI fails
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+4. **CORS errors**
+   - Some APIs may have CORS restrictions
+   - The app includes fallback mechanisms for failed API calls
 
-### `npm run build` fails to minify
+### Error Messages
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- **"Google Maps is still loading"**: Wait a few seconds and try again
+- **"Failed to find routes"**: Check that both locations are valid and accessible
+- **"API quota exceeded"**: You've hit rate limits, try again later
+- **"Request denied"**: Check API key configuration and restrictions
+
+## 📊 How It Works
+
+1. **Route Discovery**: Uses Google Maps to find multiple route alternatives
+2. **Air Quality Sampling**: Samples air quality at 5 points along each route
+3. **Health Score Calculation**: Weighs average AQI (50%) + pollution peaks (25%) + distance penalty (15%) + time penalty (10%)
+4. **Route Selection**: Selects the route with the lowest health risk score
+5. **AI Analysis**: Generates personalized health insights and recommendations
+
+## 🌍 Supported Regions
+
+- Primary: India (optimized AQI calculations)
+- Global: Works worldwide with OpenWeather data
+- Enhanced: Major cities with WAQI monitoring stations
+
+## 📱 Browser Support
+
+- Chrome 80+
+- Firefox 75+
+- Safari 13+
+- Edge 80+
+
+## 🔒 Privacy & Security
+
+- API keys are stored locally in environment variables
+- No personal data is transmitted to third parties
+- Location data is only used for route calculation
+- All API calls are made directly from your browser
+
+## 📄 License
+
+MIT License - feel free to use and modify for your projects.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📞 Support
+
+If you encounter issues:
+1. Check the API Status Test tool
+2. Verify your API keys are correct
+3. Check browser console for error messages
+4. Ensure all required APIs are enabled
+
+---
+
+**Note**: This app requires active internet connection and valid API keys to function properly. The demo will work with fallback data if APIs are unavailable.
